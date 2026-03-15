@@ -8,11 +8,13 @@ import com.bhavesh.lohana.rate_limiter.service.ClientConfigService;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import static com.bhavesh.lohana.rate_limiter.constants.ApplicationConstants.DEFAULT;
 
 @Component
+@Profile("!test") // Exclude this seeder from test profile to avoid interference with test cases
 public class ConfigSeeder {
     public final static Logger logger = LoggerFactory.getLogger(ConfigSeeder.class);
 
