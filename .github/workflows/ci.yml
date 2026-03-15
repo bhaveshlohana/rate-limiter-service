@@ -22,3 +22,20 @@ jobs:
 
       - name: Build and test
         run: ./mvnw verify
+
+      - name: Login to Docker Hub
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            bhaveshlohana/rate-limiter-service:latest
+            bhaveshlohana/rate-limiter-service:${{ github.sha }}
