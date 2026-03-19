@@ -21,22 +21,37 @@ Rate limiting is a critical component of any production API — it protects serv
 - Default config fallback — unknown client types fall back to a DEFAULT policy
 - Admin API — manage configs and inspect client state at runtime
 - Real-time observability — Prometheus metrics + Grafana dashboards
-- Plug and play — use as a REST service or embed via `@RateLimit` annotation (coming soon)
+- Plug and play — use as a REST service or embed via `@RateLimit` annotation as a Spring Boot Starter
+
+---
+
+## Project Structure
+
+```
+rate-limiter/
+├── rate-limiter-core/                 ← shared algorithms, models, Redis logic
+├── rate-limiter-service/              ← standalone REST service
+└── rate-limiter-spring-boot-starter/  ← embeddable Spring Boot library
+```
+
+`rate-limiter-core` is a shared library consumed by both the service and the starter — no logic duplication.
 
 ---
 
 ## Architecture
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Your Application                      │
 │                                                         │
-│   POST /api/rate-limiter/check                          │
-│   { clientId, clientType }                              │
+│   Mode 1: POST /api/rate-limiter/check                  │
+│   Mode 2: @RateLimit(clientType = "PREMIUM")            │
+│           via Spring Boot Starter                       │
 └─────────────────┬───────────────────────────────────────┘
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────┐
-│              Rate Limiter Service                       │
+│              Rate Limiter Service                        │
 │                                                         │
 │  RateLimiterController                                  │
 │         │                                               │
@@ -44,21 +59,21 @@ Rate limiting is a critical component of any production API — it protects serv
 │  RateLimiterFactory ──── ClientConfigService            │
 │         │                       │                       │
 │         ▼                       ▼                       │
-│  ┌─────────────┐         ┌─────────────┐                │
-│  │  Algorithm  │         │   Config    │                │
-│  │  Selection  │         │   Lookup    │                │
-│  └─────────────┘         └─────────────┘                │
+│  ┌─────────────┐         ┌─────────────┐               │
+│  │  Algorithm   │         │   Config    │               │
+│  │  Selection  │         │   Lookup    │               │
+│  └─────────────┘         └─────────────┘               │
 │         │                                               │
 │         ▼                                               │
-│  ┌──────────────────────────────────┐                   │
-│  │         Redis Lua Script         │                   │
-│  │    (atomic read-check-write)     │                   │
-│  └──────────────────────────────────┘                   │
+│  ┌──────────────────────────────────┐                  │
+│  │         Redis Lua Script         │                  │
+│  │    (atomic read-check-write)     │                  │
+│  └──────────────────────────────────┘                  │
 └─────────────────┬───────────────────────────────────────┘
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────┐
-│                      Redis                              │
+│                      Redis                               │
 │                                                         │
 │  ratelimit:config:PREMIUM    ← client configs           │
 │  ratelimit:fixed:user123     ← algorithm state          │
@@ -67,7 +82,7 @@ Rate limiting is a critical component of any production API — it protects serv
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────┐
-│              Observability Stack                        │
+│              Observability Stack                         │
 │                                                         │
 │  /actuator/prometheus ──► Prometheus ──► Grafana        │
 └─────────────────────────────────────────────────────────┘
@@ -115,6 +130,7 @@ All three algorithms use **Redis Lua scripts** for atomic execution. The read-ch
 - Java 21 (for local development)
 
 ### Run with Docker Compose
+
 ```bash
 git clone https://github.com/bhaveshlohana/rate-limiter-service
 cd rate-limiter-service
@@ -128,6 +144,7 @@ This starts:
 - Grafana on `http://localhost:3000` (admin/admin)
 
 ### Run with Docker
+
 ```bash
 docker run -p 8080:8080 \
   -e SPRING_DATA_REDIS_HOST=host.docker.internal \
@@ -136,6 +153,7 @@ docker run -p 8080:8080 \
 ```
 
 ### Run locally
+
 ```bash
 ./mvnw spring-boot:run
 ```
@@ -147,9 +165,11 @@ Requires Redis running on `localhost:6379`.
 ## API Reference
 
 ### Rate Limit Check
+
 ```bash
 POST /api/rate-limiter/check
 ```
+
 ```json
 {
   "clientId": "user123",
@@ -160,6 +180,7 @@ POST /api/rate-limiter/check
 **Responses:**
 - `200 OK` — request allowed
 - `429 Too Many Requests` — rate limit exceeded
+
 ```json
 {
   "allowed": true,
@@ -169,9 +190,11 @@ POST /api/rate-limiter/check
 ```
 
 ### Admin — Set Config
+
 ```bash
 POST /api/admin/config
 ```
+
 ```json
 {
   "clientType": "PREMIUM",
@@ -182,24 +205,29 @@ POST /api/admin/config
 ```
 
 ### Admin — Get Config
+
 ```bash
 GET /api/admin/config/{clientType}
 ```
 
 ### Admin — List All Configs
+
 ```bash
 GET /api/admin/config
 ```
 
 ### Admin — Delete Config
+
 ```bash
 DELETE /api/admin/config/{clientType}
 ```
 
 ### Admin — Client Status
+
 ```bash
 GET /api/admin/status?clientId=user123&clientType=PREMIUM
 ```
+
 ```json
 {
   "clientId": "user123",
@@ -230,6 +258,7 @@ Client configurations are stored dynamically in Redis. No restart required to up
 ### Default Config
 
 A `DEFAULT` config is seeded on startup and applies to any unknown client type:
+
 ```json
 {
   "clientType": "DEFAULT",
@@ -240,6 +269,7 @@ A `DEFAULT` config is seeded on startup and applies to any unknown client type:
 ```
 
 ### Example Configs
+
 ```bash
 # Anonymous users — strict
 curl -X POST http://localhost:8080/api/admin/config \
@@ -279,8 +309,8 @@ curl -X POST http://localhost:8080/api/admin/config \
 ### Mode 1 — REST Service
 
 Any service can integrate by calling the `/check` endpoint before processing a request:
+
 ```java
-// In your service
 RestTemplate restTemplate = new RestTemplate();
 RateLimitRequest request = new RateLimitRequest("user123", "PREMIUM");
 ResponseEntity<RateLimitResponse> response = restTemplate.postForEntity(
@@ -297,15 +327,32 @@ if (response.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
 ### Mode 2 — Spring Boot Starter
 
 Add the dependency to your Spring Boot project:
+
 ```xml
 <dependency>
-    <groupId>com.bhavesh.lohana</groupId>
-    <artifactId>rate-limiter-starter</artifactId>
+    <groupId>com.bhavesh.learn</groupId>
+    <artifactId>rate-limiter-spring-boot-starter</artifactId>
     <version>1.0.0</version>
 </dependency>
 ```
 
+Configure client types in `application.yml`:
+
+```yaml
+rate-limiter:
+  configs:
+    - clientType: DEFAULT
+      algorithm: FIXED_WINDOW
+      limit: 60
+      windowSizeSeconds: 60
+    - clientType: PREMIUM
+      algorithm: TOKEN_BUCKET
+      capacity: 100
+      refillRatePerSecond: 10.0
+```
+
 Annotate your endpoints:
+
 ```java
 @RateLimit(clientType = "PREMIUM")
 @GetMapping("/api/data")
@@ -313,6 +360,8 @@ public ResponseEntity<?> getData() {
     return ResponseEntity.ok(data);
 }
 ```
+
+When the rate limit is exceeded, the starter automatically returns `429 Too Many Requests` — no additional configuration needed.
 
 ---
 
@@ -327,6 +376,7 @@ Metrics are exposed at `/actuator/prometheus` and scraped by Prometheus every 5 
 | `ratelimit_request_total` | `clientType`, `algorithm`, `result` | Total requests checked |
 
 **Key queries:**
+
 ```promql
 # Request rate per second
 rate(ratelimit_request_total[1m])
@@ -364,6 +414,7 @@ Results were consistent across both runs. All responses returned within 200ms un
 
 ![Load Test Dashboard](docs/images/grafana-load-test.png)
 
+---
 
 ## Design Decisions
 
@@ -378,6 +429,9 @@ If a client type has no config and no DEFAULT exists, requests are rejected. A r
 
 **Why Token Bucket for most use cases?**  
 Fixed Window allows boundary bursts. Sliding Window is memory-heavy at scale. Token Bucket provides accurate rate limiting with controlled burst support at O(1) memory per client.
+
+**Why a Spring Boot Starter?**  
+The starter allows any Spring Boot application to add rate limiting with a single dependency and annotation — no REST calls, no manual wiring. It auto-configures all beans and seeds client configs from `application.yml` on startup.
 
 ---
 
@@ -403,8 +457,14 @@ Fixed Window allows boundary bursts. Sliding Window is memory-heavy at scale. To
 ---
 
 ## Running Tests
+
 ```bash
+# run all tests across all modules
 ./mvnw test
+
+# run tests for a specific module
+./mvnw test -pl rate-limiter-service
+./mvnw test -pl rate-limiter-core
 ```
 
 Tests use embedded Redis — no external dependencies required.
