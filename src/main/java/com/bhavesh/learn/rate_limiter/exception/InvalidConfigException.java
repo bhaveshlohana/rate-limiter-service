@@ -1,7 +1,0 @@
-package com.bhavesh.learn.rate_limiter.exception;
-
-public class InvalidConfigException extends Exception{
-    public InvalidConfigException(String message) {
-        super(message);
-    }
-}
