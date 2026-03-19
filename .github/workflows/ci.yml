@@ -39,3 +39,9 @@ jobs:
           tags: |
             bhaveshlohana/rate-limiter-service:latest
             bhaveshlohana/rate-limiter-service:${{ github.sha }}
+
+      - name: Publish to GitHub Packages
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: ./mvnw deploy -pl rate-limiter-core,rate-limiter-spring-boot-starter -am -DskipTests --settings .github/workflows/maven-settings.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

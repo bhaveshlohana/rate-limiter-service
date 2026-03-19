@@ -1,6 +1,6 @@
 # Distributed Rate Limiter as a Service
 
-![CI](https://github.com/bhaveshlohana/rate-limiter-service/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/bhaveshlohana/rate-limiter/actions/workflows/ci.yml/badge.svg)
 ![Docker](https://img.shields.io/docker/pulls/bhaveshlohana/rate-limiter-service)
 
 A production-grade, distributed rate limiting service built with Spring Boot and Redis. Supports three algorithms, dynamic per-client configuration, atomic Redis Lua scripts, and real-time observability via Prometheus and Grafana.
